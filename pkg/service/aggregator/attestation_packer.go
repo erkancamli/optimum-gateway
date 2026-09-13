@@ -47,6 +47,12 @@ func (a *AttestationPacker) Add(meta *topics.TopicMeta, message []byte) error {
 	if err := a.sszEncoder.DecodeGossip(message, &attestation); err != nil {
 		return fmt.Errorf("decoding message: %w", err)
 	}
+	// Apply the known-validator filter the caller installed. Without this the
+	// checker handed to NewAttestationPacker is stored and never read, so the
+	// packer silently accepts attestations from validators outside the known set.
+	if a.isKnownValidator != nil && !a.isKnownValidator(uint64(attestation.AttesterIndex)) {
+		return nil
+	}
 	var encodedData bytes.Buffer
 	if _, err := a.sszEncoder.EncodeGossip(&encodedData, &attestation.Data); err != nil {
 		return fmt.Errorf("encoding message: %w", err)
