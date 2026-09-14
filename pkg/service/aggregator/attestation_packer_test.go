@@ -100,6 +100,16 @@ func TestAttestationPacker_SkipsUnknownValidator(t *testing.T) {
 	require.Zero(t, packer.TotalItems())
 }
 
+func TestAttestationPacker_PacksKnownValidator(t *testing.T) {
+	packer := aggregator.NewAttestationPacker(func(uint64) bool { return true })
+	data := generateAttestationData(t)
+	require.NoError(t, packer.Add(
+		topics.ParseTopicMeta(generateAttestationTopic(t)),
+		test_utils.SSZSnappyEncode(t, generateAttestation(t, data)),
+	))
+	require.Equal(t, 1, packer.TotalItems())
+}
+
 func TestPackAttestations_SendTsMs(t *testing.T) {
 	packer := aggregator.NewAttestationPacker(nil)
 	data := generateAttestationData(t)
