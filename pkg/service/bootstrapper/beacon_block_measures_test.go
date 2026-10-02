@@ -146,3 +146,29 @@ func TestHandleBeaconBlock(t *testing.T) {
 	require.Equal(t, "upstream-lib-first", req.Payload.EthUpstreamPeerID)
 	require.Zero(t, req.Payload.MumSeenAtMs)
 }
+
+func TestHandleBeaconBlockAfterPublishKeepsBlockFields(t *testing.T) {
+	srv, bootstrap, _ := getTestSrv(t)
+	srv.SetGatewayPeerIDStr("self-peer")
+
+	const slot = uint64(96)
+
+	// On the CL path the gateway publishes to mump2p and records publishedAt
+	// synchronously, so the slot entry can exist before the libp2p arrival is composed.
+	srv.RecordMumPublishedAt(slot, 1_500)
+	srv.HandleBeaconBlock(entities.SourceLibP2P, slot, 77, 2048, 1_000, "", "upstream-lib")
+
+	for {
+		req := bootstrap.WaitBlockLatencyRequest(t, 5*time.Second)
+		require.Equal(t, slot, req.Payload.BlockSlot)
+		if req.Payload.EthSeenAtMs == 0 {
+			continue // the publish-only snapshot
+		}
+		require.Equal(t, int64(1_000), req.Payload.EthSeenAtMs)
+		require.Equal(t, int64(1_500), req.Payload.MumPublishedAtMs)
+		require.Equal(t, uint64(77), req.Payload.ValidatorIndex)
+		require.Equal(t, uint64(2048), req.Payload.BlockSize)
+		require.Equal(t, "self-peer", req.Payload.GatewayPeerID)
+		return
+	}
+}

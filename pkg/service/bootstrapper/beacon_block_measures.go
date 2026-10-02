@@ -97,11 +97,19 @@ func (s *Service) composeBlockTelemetry(ev *blockArrival) {
 		// Record routing information for hop-by-hop latency analysis
 		telemetry.RecordBlockPathArrival(false, ev.recvAt, zeroVal.SlotTime, "", ev.upstreamPeerID)
 	}
-	// firstForSlot will be true if this is the first time we're seeing this slot, which we use to increment the appropriate telemetry counter.
+	// firstForSlot is true for the first block arrival of this slot from either source.
+	// RecordMumPublishedAt may have created the entry already, so presence alone is not "seen".
 	firstForSlot := true
 	s.trackedSlots.Upsert(ev.slot, func(value *entities.LatencyComparator) *entities.LatencyComparator {
-		firstForSlot = false
+		firstForSlot = value.EthSeenAtMs == 0 && value.MumSeenAtMs == 0
 		value.ChainID = s.srvForkMgr.AppChainID()
+		if value.GatewayPeerID == "" {
+			value.GatewayPeerID = s.nodeMumP2PStr
+		}
+		if value.BlockSize == 0 {
+			value.ValidatorIndex = ev.proposerIndex
+			value.BlockSize = ev.blockSize
+		}
 		switch ev.source {
 		case entities.SourceLibP2P:
 			if value.EthSeenAtMs == 0 {
